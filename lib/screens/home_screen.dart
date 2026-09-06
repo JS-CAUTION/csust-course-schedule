@@ -11,7 +11,10 @@ import '../widgets/origami_crane.dart';
 /// 今日课程 — Home Screen
 /// Shows today's courses for the current week.
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
+  /// 点击右上角课程表图标时，通知 MainScreen 左滑到课程表页（复用同一个 ScheduleScreen）。
+  final VoidCallback onOpenSchedule;
+
+  const HomeScreen({super.key, required this.onOpenSchedule});
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -72,7 +75,7 @@ class _HomeScreenState extends State<HomeScreen>
                                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                 children: [
                                   GestureDetector(
-                                    onTap: () => Navigator.pushNamed(context, '/schedule'),
+                                    onTap: widget.onOpenSchedule,
                                     child: const Icon(Icons.calendar_month_outlined, size: AppSpacing.iconSize),
                                   ),
                                   Text('今日课程', style: AppTypography.pageTitle),

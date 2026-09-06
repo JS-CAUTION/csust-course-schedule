@@ -65,7 +65,7 @@ class _MainScreenState extends State<MainScreen> {
             controller: _pageController,
             onPageChanged: (page) => setState(() => _currentPage = page),
             children: [
-              HomeScreen(),
+              HomeScreen(onOpenSchedule: () => _goToPage(1)),
               ScheduleScreen(onNavigateBack: () => _goToPage(0)),
             ],
           ),

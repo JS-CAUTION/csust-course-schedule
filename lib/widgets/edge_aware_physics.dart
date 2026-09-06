@@ -30,29 +30,21 @@ class EdgeAwarePhysics extends PageScrollPhysics {
   }
 
   @override
-  double applyBoundaryConditions(ScrollMetrics position, double offset) {
-    // At left edge: allow right-swipe to overflow → passes to outer PageView
-    if (atLeftEdge && offset > 0) {
-      return offset;
-    }
-    // At right edge: allow left-swipe to overflow → passes to outer PageView
-    if (atRightEdge && offset < 0) {
-      return offset;
-    }
-    return super.applyBoundaryConditions(position, offset);
-  }
-
-  @override
   Simulation? createBallisticSimulation(
       ScrollMetrics position, double velocity) {
-    // At edge with outward velocity → no simulation → outer PageView takes over
-    if (atLeftEdge && position.pixels <= position.minScrollExtent && velocity > 0) {
+    // 左边缘：右滑（负速度）越界时不再回弹，把滑动手势交给外层 PageView。
+    if (atLeftEdge &&
+        position.pixels <= position.minScrollExtent &&
+        velocity < 0) {
       return null;
     }
-    if (atRightEdge && position.pixels >= position.maxScrollExtent && velocity < 0) {
+    // 右边缘：左滑（正速度）越界时不再回弹，把滑动手势交给外层 PageView。
+    if (atRightEdge &&
+        position.pixels >= position.maxScrollExtent &&
+        velocity > 0) {
       return null;
     }
-    // Normally → PageScrollPhysics handles snap-to-page
+    // 其余情况交给 PageScrollPhysics 正常吸附到整页。
     return super.createBallisticSimulation(position, velocity);
   }
 }

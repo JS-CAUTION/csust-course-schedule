@@ -8,6 +8,7 @@ import '../providers/semester_provider.dart';
 import '../services/database_service.dart';
 import '../services/notification_service.dart';
 import '../widgets/diffuse_background.dart';
+import '../widgets/semester_day_picker.dart';
 import '../widgets/settings_row.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -281,14 +282,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final now = DateTime.now();
     final initialDate = provider.firstDay ?? now;
 
-    final picked = await showDatePicker(
-      context: context,
+    final picked = await showSemesterDayPicker(
+      context,
       initialDate: initialDate,
       firstDate: DateTime(now.year - 10),
       lastDate: DateTime(now.year + 10),
-      helpText: '选择学期第一天',
-      cancelText: '取消',
-      confirmText: '确定',
     );
 
     if (picked != null) {

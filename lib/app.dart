@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'screens/main_screen.dart';
-import 'screens/home_screen.dart';
-import 'screens/schedule_screen.dart';
 import 'screens/settings_screen.dart';
 import 'screens/import_screen.dart';
 import 'screens/edu_webview_screen.dart';
@@ -33,8 +31,6 @@ class CourseScheduleApp extends StatelessWidget {
         switch (settings.name) {
           case '/':
             return _fadeRoute(const MainScreen());
-          case '/schedule':
-            return _fadeRoute(const ScheduleScreen());
           case '/settings':
             return _fadeRoute(const SettingsScreen());
           case '/import':
@@ -46,7 +42,7 @@ class CourseScheduleApp extends StatelessWidget {
           case '/custom':
             return _fadeRoute(const CustomScreen());
           default:
-            return _fadeRoute(const HomeScreen());
+            return _fadeRoute(const MainScreen());
         }
       },
     );

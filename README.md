@@ -2,7 +2,6 @@
 
 一个轻量、无广告的 Android 课程表应用。
 
-> 这是我的第一个 Flutter 项目，由 AI 辅助完成。  
 > 目前仅适配了长沙理工大学教学一体化平台导出的课表格式。
 
 ## 功能
@@ -43,7 +42,7 @@
 
 | 按钮 | 作用 |
 |---|---|
-| 「账密：0135」 | 显示所选账号后四位；点击展开已保存的账密列表（点账号=选中，垃圾桶图标=删除） |
+| 「账密：」 | 显示所选账号后四位；点击展开已保存的账密列表（点账号=选中，垃圾桶图标=删除） |
 | 「填充」 | 把选中的账密填入登录表单（验证码仍需手输） |
 | 「导入课表」 | 提取当前课表进预览 |
 
@@ -126,7 +125,15 @@ flutter pub get
 flutter build apk --release --split-per-abi
 ```
 
-安装 `build/app/outputs/flutter-apk/app-arm64-v8a-release.apk`。
+生成的 APK 在 `build/app/outputs/apk/release/` 下，文件名已带应用名和版本号：
+
+- `千纸课-v2.0.0-arm64-v8a.apk`（多数手机）
+- `千纸课-v2.0.0-armeabi-v7a.apk`（老旧 32 位设备）
+- `千纸课-v2.0.0-x86_64.apk`（模拟器）
+
+一般安装 `千纸课-v2.0.0-arm64-v8a.apk`。
+
+> 注：`build/app/outputs/flutter-apk/` 是 Flutter 工具的内部拷贝目录，仍叫 `app-*.apk`；带名字的正式产物在 `apk/release/`。
 
 ## 运行环境
 

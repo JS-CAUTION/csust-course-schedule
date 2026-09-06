@@ -10,6 +10,7 @@ import '../services/database_service.dart';
 import '../widgets/course_detail_sheet.dart';
 import '../widgets/edit_course_screen_wire.dart';
 import '../widgets/edge_aware_physics.dart';
+import '../widgets/semester_day_picker.dart';
 
 /// 课程表 — Schedule Screen
 /// Horizontal swipe to change weeks (1-20).
@@ -368,14 +369,11 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
   void _showSemesterPicker(BuildContext context) async {
     final sp = context.read<SemesterProvider>();
     final now = DateTime.now();
-    final picked = await showDatePicker(
-      context: context,
+    final picked = await showSemesterDayPicker(
+      context,
       initialDate: sp.firstDay ?? now,
       firstDate: DateTime(now.year - 5),
       lastDate: DateTime(now.year + 5),
-      helpText: '选择学期第一天',
-      cancelText: '取消',
-      confirmText: '确定',
     );
     if (picked != null) await sp.setFirstDay(picked);
   }
