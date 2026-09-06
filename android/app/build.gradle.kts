@@ -34,13 +34,13 @@ android {
         }
     }
 
-    // 自定义 APK 文件名：千纸课-v2.0.0-arm64-v8a.apk
+    // 自定义 APK 文件名：qianzhike-v2.0.0-arm64-v8a.apk
     applicationVariants.all(object : org.gradle.api.Action<com.android.build.gradle.api.ApplicationVariant> {
         override fun execute(variant: com.android.build.gradle.api.ApplicationVariant) {
             variant.outputs.forEach { output ->
                 val apkOutput = output as com.android.build.gradle.api.ApkVariantOutput
                 val abi = apkOutput.getFilter(com.android.build.VariantOutput.FilterType.ABI) ?: "universal"
-                apkOutput.outputFileName = "千纸课-v${flutter.versionName}-$abi.apk"
+                apkOutput.outputFileName = "qianzhike-v${flutter.versionName}-$abi.apk"
             }
         }
     })

@@ -127,11 +127,11 @@ flutter build apk --release --split-per-abi
 
 生成的 APK 在 `build/app/outputs/apk/release/` 下，文件名已带应用名和版本号：
 
-- `千纸课-v2.0.0-arm64-v8a.apk`（多数手机）
-- `千纸课-v2.0.0-armeabi-v7a.apk`（老旧 32 位设备）
-- `千纸课-v2.0.0-x86_64.apk`（模拟器）
+- `qianzhike-v2.0.0-arm64-v8a.apk`（多数手机）
+- `qianzhike-v2.0.0-armeabi-v7a.apk`（老旧 32 位设备）
+- `qianzhike-v2.0.0-x86_64.apk`（模拟器）
 
-一般安装 `千纸课-v2.0.0-arm64-v8a.apk`。
+一般安装 `qianzhike-v2.0.0-arm64-v8a.apk`。
 
 > 注：`build/app/outputs/flutter-apk/` 是 Flutter 工具的内部拷贝目录，仍叫 `app-*.apk`；带名字的正式产物在 `apk/release/`。
 
