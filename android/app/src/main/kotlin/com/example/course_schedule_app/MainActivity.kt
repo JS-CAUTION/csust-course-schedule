@@ -40,25 +40,35 @@ class MainActivity : FlutterActivity() {
                 val channelId = args["channelId"] as? String ?: "course_ongoing"
                 val channelName = args["channelName"] as? String ?: "上课常驻"
                 val channelDesc = args["channelDesc"] as? String ?: ""
-                val type = args["type"] as? String ?: "ongoing"
+                // "reminder" | "ongoing" | "dismiss" — 未知值一律降级为 "ongoing"
+                // （常驻优先：宁可划不掉，也不能让正在上课的提醒被误划掉）。
+                val rawType = args["type"] as? String
+                val type = if (rawType == "reminder" || rawType == "dismiss") rawType else "ongoing"
+                // 时间区间后缀，如 "8:00~9:40"；为空则不加。
+                val durationText = args["durationText"] as? String ?: ""
+
                 val mgr = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
                 val ch = android.app.NotificationChannel(
                     channelId, channelName, NotificationManager.IMPORTANCE_LOW
                 ).apply { description = channelDesc }
                 mgr.createNotificationChannel(ch)
 
-                val appInfo = packageManager.getApplicationInfo(packageName, 0)
                 val largeIcon = Icon.createWithResource(packageName, R.mipmap.ic_launcher)
+
+                val contentText =
+                    if (durationText.isEmpty()) body else "$body · $durationText"
 
                 val notification = NotificationCompat.Builder(this, channelId)
                     .setSmallIcon(R.mipmap.ic_launcher)
+
                     .setLargeIcon(largeIcon)
                     .setContentTitle(title)
-                    .setContentText(body)
+                    .setContentText(contentText)
                     .setPriority(NotificationCompat.PRIORITY_LOW)
+                    // 只有「上课中」常驻；「课程提醒」可左右划掉。
+                    .setOngoing(type == "ongoing")
                     .setAutoCancel(type != "ongoing")
-                    .setOngoing(true)
-                    .setSilent(type == "dismiss")
+                    .setSilent(type != "reminder")
                     .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
                     .setCategory(NotificationCompat.CATEGORY_SERVICE)
                     .build()

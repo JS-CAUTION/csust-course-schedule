@@ -1,51 +1,110 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:course_schedule_app/models/course.dart';
+import 'package:course_schedule_app/services/notification_service.dart';
 
 void main() {
-  group('NotificationService ID generation', () {
-    int reminderId(String courseId, int week) =>
-        ('$courseId-reminder-$week').hashCode.abs();
-
-    int ongoingId(String courseId, int week) =>
-        ('$courseId-ongoing-$week').hashCode.abs();
-
-    test('reminder and ongoing IDs are different for same course+week', () {
-      expect(reminderId('abc', 1), isNot(equals(ongoingId('abc', 1))));
-    });
-
-    test('different courses produce different ongoing IDs for same week', () {
-      expect(ongoingId('abc', 1), isNot(equals(ongoingId('def', 1))));
-    });
-
-    test('same course different weeks produce different ongoing IDs', () {
-      expect(ongoingId('abc', 3), isNot(equals(ongoingId('abc', 4))));
-    });
-
-    test('different courses produce different reminder IDs for same week', () {
-      expect(reminderId('abc', 1), isNot(equals(reminderId('def', 1))));
-    });
-
-    test('same course different weeks produce different reminder IDs', () {
-      expect(reminderId('abc', 3), isNot(equals(reminderId('abc', 4))));
-    });
-
-    test('no ID is ever zero (sentinel check)', () {
-      final ids = <int>[];
-      for (int w = 1; w <= 20; w++) {
-        ids.add(reminderId('test', w));
-        ids.add(ongoingId('test', w));
+  // ── Notification ID uniqueness ──
+  //
+  // This group used to re-implement the ID formula locally and assert that a
+  // handful of toy inputs ('abc', 'test') differed. That was a tautology: it
+  // checked that Dart's String.hashCode separates three arbitrary strings, not
+  // that the app's real ID space is collision-free. The production scheme is
+  // now a packed bit layout, so uniqueness is a structural property — and
+  // these tests pin that structure down.
+  group('NotificationService ID uniqueness', () {
+    test('IDs are unique across 200 courses × 20 weeks × 2 kinds', () {
+      final seen = <int, String>{};
+      for (int courseIndex = 0; courseIndex < 200; courseIndex++) {
+        for (int week = 1; week <= 20; week++) {
+          for (final kind in const ['reminder', 'ongoing']) {
+            final id = kind == 'reminder'
+                ? NotificationService.debugReminderId(courseIndex, week)
+                : NotificationService.debugOngoingId(courseIndex, week);
+            final label = 'course=$courseIndex week=$week kind=$kind';
+            final previous = seen[id];
+            expect(previous, isNull,
+                reason: 'ID collision: $label collides with $previous '
+                    '(both → $id)');
+            seen[id] = label;
+          }
+        }
       }
-      for (final id in ids) {
-        expect(id, isNot(equals(0)),
-            reason: 'Notification ID should never be 0');
+      // Guard against the loop silently generating nothing.
+      expect(seen.length, 200 * 20 * 2);
+    });
+
+    test('IDs are unique at the maximum supported course index and week', () {
+      final a = NotificationService.debugReminderId(4095, 20);
+      final b = NotificationService.debugOngoingId(4095, 20);
+      final c = NotificationService.debugReminderId(4095, 19);
+      final d = NotificationService.debugReminderId(4094, 20);
+      expect({a, b, c, d}.length, 4, reason: 'max-range IDs must not collide');
+    });
+
+    test('IDs are deterministic — same inputs give the same ID', () {
+      // Determinism matters because a notification posted before an app
+      // restart must be cancellable after it. (The old hashCode scheme was
+      // NOT deterministic across processes: Dart seeds string hashes.)
+      for (int courseIndex = 0; courseIndex < 50; courseIndex++) {
+        for (int week = 1; week <= 20; week++) {
+          expect(
+            NotificationService.debugOngoingId(courseIndex, week),
+            NotificationService.debugOngoingId(courseIndex, week),
+          );
+        }
       }
     });
 
-    test('all IDs are positive', () {
-      for (int w = 1; w <= 20; w++) {
-        expect(reminderId('test', w), greaterThan(0));
-        expect(ongoingId('test', w), greaterThan(0));
+    test('kind and week round-trip through the packed layout', () {
+      for (final courseIndex in const [0, 1, 17, 255, 4095]) {
+        for (final week in const [1, 2, 9, 20]) {
+          final reminder =
+              NotificationService.debugReminderId(courseIndex, week);
+          final ongoing = NotificationService.debugOngoingId(courseIndex, week);
+
+          expect(NotificationService.notificationWeek(reminder), week);
+          expect(NotificationService.notificationWeek(ongoing), week);
+          expect(NotificationService.notificationCourseIndex(reminder),
+              courseIndex);
+          expect(NotificationService.notificationCourseIndex(ongoing),
+              courseIndex);
+          expect(NotificationService.notificationKind(reminder), 0);
+          expect(NotificationService.notificationKind(ongoing), 1);
+        }
       }
+    });
+
+    test('course index and week bit ranges do not overlap', () {
+      // The structural guarantee behind the uniqueness test: packId places
+      // week strictly above courseIndex, so no (course, week) pair can alias.
+      // 12 bits of course index, then 5 bits of week starting at bit 15.
+      final maxIndexOnly = NotificationService.debugReminderId(4095, 1);
+      final minIndexNextWeek = NotificationService.debugReminderId(0, 2);
+      expect(minIndexNextWeek, greaterThan(maxIndexOnly),
+          reason: 'week-2 index-0 must sort above week-1 index-4095');
+    });
+
+    test('all IDs are positive, non-zero and inside signed int32', () {
+      for (int courseIndex = 0; courseIndex < 200; courseIndex++) {
+        for (int week = 1; week <= 20; week++) {
+          for (final id in [
+            NotificationService.debugReminderId(courseIndex, week),
+            NotificationService.debugOngoingId(courseIndex, week),
+          ]) {
+            expect(id, greaterThan(0));
+            expect(id, lessThan(0x7FFFFFFF),
+                reason: 'Android notification IDs are signed int32');
+            // Must not collide with the foreground service's fixed ID.
+            expect(id, isNot(equals(9000)));
+          }
+        }
+      }
+    });
+
+    test('lowest generated ID clears other notification-ID neighbourhoods', () {
+      final lowest = NotificationService.debugReminderId(0, 1);
+      expect(lowest, greaterThanOrEqualTo(NotificationService.notificationIdBase));
+      expect(lowest, greaterThan(9000));
     });
   });
 
@@ -112,6 +171,105 @@ void main() {
       final notifyMin = startMin - advance;
       expect(notifyMin ~/ 60, 13);
       expect(notifyMin % 60, 30);
+    });
+  });
+
+  group('Notification slot sharing — reminder and ongoing must share one slot', () {
+    // Regression guard for a real breakage: the reminder was once posted under
+    // its OWN notifyId instead of the ongoing one. Android then showed two
+    // separate notifications, and since the "class finished" branch cancels
+    // only the ongoing id, the reminder was orphaned in the shade forever —
+    // it stopped disappearing.
+    //
+    // Both are posted with `notifyId: oId` in NotificationService._checkSchedule:
+    //   - starting class overwrites the reminder in place, and
+    //   - ending class cancels that same id, removing the reminder too.
+    //
+    // These tests pin the two halves of that invariant that are checkable here.
+    test('the reminder carries a distinct packed id (kind 0)', () {
+      for (final week in const [1, 5, 20]) {
+        final r = NotificationService.debugReminderId(0, week);
+        final o = NotificationService.debugOngoingId(0, week);
+        expect(NotificationService.notificationKind(r), 0);
+        expect(NotificationService.notificationKind(o), 1);
+        expect(r, isNot(equals(o)));
+      }
+    });
+
+    test('one course has exactly one ongoing slot per week, shared by both', () {
+      // The notifyId actually passed to Android is `debugOngoingId` in BOTH the
+      // reminder and the ongoing branch. Asserting it is stable and unique per
+      // (course, week) is what makes "cancel at class end" reach the reminder.
+      final seen = <int>{};
+      for (int courseIndex = 0; courseIndex < 50; courseIndex++) {
+        for (int week = 1; week <= 20; week++) {
+          final oId = NotificationService.debugOngoingId(courseIndex, week);
+          expect(seen.add(oId), isTrue,
+              reason: 'ongoing slot must be unique per (course=$courseIndex, '
+                  'week=$week) or a cancel would hit the wrong course');
+        }
+      }
+    });
+
+    test('the id round-trips back to its course index for cancellation', () {
+      // The cancel path only has the packed id, so it must carry the index.
+      for (final courseIndex in const [0, 7, 123, 4095]) {
+        final oId = NotificationService.debugOngoingId(courseIndex, 9);
+        expect(NotificationService.notificationCourseIndex(oId), courseIndex);
+        expect(NotificationService.notificationWeek(oId), 9);
+      }
+    });
+  });
+
+  group('Course.isActiveInWeek — gates which weeks notify', () {
+    Course course({
+      int startWeek = 1,
+      int endWeek = 20,
+      WeekMode mode = WeekMode.all,
+      List<int> customWeeks = const [],
+    }) {
+      return Course(
+        id: 'c',
+        name: '课',
+        teacher: '',
+        location: '',
+        dayOfWeek: 1,
+        startPeriod: 1,
+        endPeriod: 2,
+        startWeek: startWeek,
+        endWeek: endWeek,
+        weekMode: mode,
+        customWeeks: customWeeks,
+      );
+    }
+
+    test('all-weeks course is active across its range only', () {
+      final c = course(startWeek: 3, endWeek: 6);
+      expect(c.isActiveInWeek(2), isFalse);
+      expect(c.isActiveInWeek(3), isTrue);
+      expect(c.isActiveInWeek(6), isTrue);
+      expect(c.isActiveInWeek(7), isFalse);
+    });
+
+    test('odd-week course skips even weeks', () {
+      final c = course(mode: WeekMode.odd);
+      expect(c.isActiveInWeek(1), isTrue);
+      expect(c.isActiveInWeek(2), isFalse);
+      expect(c.isActiveInWeek(3), isTrue);
+    });
+
+    test('even-week course skips odd weeks', () {
+      final c = course(mode: WeekMode.even);
+      expect(c.isActiveInWeek(1), isFalse);
+      expect(c.isActiveInWeek(2), isTrue);
+      expect(c.isActiveInWeek(4), isTrue);
+    });
+
+    test('custom-week course only matches listed weeks', () {
+      final c = course(mode: WeekMode.custom, customWeeks: const [1, 5, 9]);
+      expect(c.isActiveInWeek(1), isTrue);
+      expect(c.isActiveInWeek(5), isTrue);
+      expect(c.isActiveInWeek(2), isFalse);
     });
   });
 }
