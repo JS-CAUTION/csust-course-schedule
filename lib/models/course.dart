@@ -65,6 +65,61 @@ class Course {
     return true;
   }
 
+  /// Whether this course's class session is in progress at [now].
+  ///
+  /// Pure and time-injectable on purpose: the schedule grid's "pulsing cell"
+  /// effect is driven by this, and a wall-clock lookup inside a widget cannot
+  /// be tested deterministically.
+  ///
+  /// This answers *only* "is the clock inside a session". It says nothing about
+  /// which week is being displayed — callers that care about that must use
+  /// [shouldPulseInGrid] instead, which layers the week gate on top.
+  ///
+  /// The session start is inclusive and the end exclusive, so a course ending
+  /// at 9:40 is no longer ongoing at exactly 9:40 (matching the notification
+  /// service, which clears the banner at that instant).
+  bool isOngoingAt(DateTime now) {
+    if (dayOfWeek != now.weekday % 7) return false;
+
+    // Both bounds come from the slot that *contains* startPeriod.
+    //
+    // `TimeSlot.forPeriod` only knows the five slot-leading periods (1,3,5,7,9),
+    // so looking up `endPeriod` would return null for every real course (a
+    // "第1大节" course is stored as startPeriod 1 / endPeriod 2). The session is
+    // one 大节, so its slot supplies both the start and the end time.
+    final slot = TimeSlot.forPeriod(startPeriod);
+    if (slot == null) return false;
+
+    final nowMin = now.hour * 60 + now.minute;
+    return nowMin >= slot.startMinuteOfDay && nowMin < slot.endMinuteOfDay;
+  }
+
+  /// Whether the schedule grid should render this course with the "in class"
+  /// pulse effect.
+  ///
+  /// [displayedWeek] is the week the user is looking at and [currentWeek] is the
+  /// week "now" falls in. The pulse means "this session is happening right now",
+  /// so it requires all three:
+  ///   1. the grid is showing the current week,
+  ///   2. the course actually takes place in that week (single/double/custom
+  ///      weeks included — a single-week course must not pulse in a week it
+  ///      skips), and
+  ///   3. the clock is inside the session ([isOngoingAt]).
+  ///
+  /// Requirement 1 is the fix for the bug where switching weeks with the header
+  /// arrows left the effect burning on whatever card now occupied the same grid
+  /// position: the old check only compared weekday and time slot, both of which
+  /// are week-independent.
+  bool shouldPulseInGrid({
+    required int displayedWeek,
+    required int currentWeek,
+    required DateTime now,
+  }) {
+    if (displayedWeek != currentWeek) return false;
+    if (!isActiveInWeek(displayedWeek)) return false;
+    return isOngoingAt(now);
+  }
+
   String get timeText {
     const slots = ['', '8:00', '10:10', '14:00', '16:10', '19:30'];
     const endSlots = ['', '9:40', '11:50', '15:40', '17:50', '21:10'];

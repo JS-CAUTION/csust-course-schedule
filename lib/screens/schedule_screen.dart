@@ -68,6 +68,9 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
         child: Consumer2<CourseProvider, SemesterProvider>(
           builder: (context, cp, sp, _) {
             final today = DateTime.now();
+            // Resolved once per build so every page agrees on "now's week".
+            // Used to gate the pulsing-cell effect to the current week only.
+            final currentWeek = sp.currentWeek.clamp(_weekMin, _weekMax);
 
             return GestureDetector(
               onTap: _clearEmptySelection,
@@ -123,7 +126,8 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
                             child: Column(
                               children: [
                                 const SizedBox(height: AppSpacing.md),
-                                _buildScheduleGrid(context, cp.courses, w),
+                                _buildScheduleGrid(
+                                    context, cp.courses, w, currentWeek),
                                 const SizedBox(height: AppSpacing.sm),
                               ],
                             ),
@@ -380,8 +384,8 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
 
   // ═══ Schedule Grid ═══
 
-  Widget _buildScheduleGrid(
-      BuildContext context, List<Course> allCourses, int displayWeek) {
+  Widget _buildScheduleGrid(BuildContext context, List<Course> allCourses,
+      int displayWeek, int currentWeek) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -459,6 +463,8 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
                                 inactiveCourses: inactive,
                                 otherWeekCourses: other,
                                 isSelected: isSel,
+                                displayedWeek: displayWeek,
+                                currentWeek: currentWeek,
                                 onTap: () {
                                   final c = _primary(active, inactive, other);
                                   setState(() {
@@ -747,6 +753,12 @@ class _CourseCell extends StatelessWidget {
   final List<Course> inactiveCourses;
   final List<Course> otherWeekCourses;
   final bool isSelected;
+
+  /// The week the grid is showing and the week "now" falls in. Both are needed
+  /// because the "in class" pulse is only meaningful for the current week.
+  final int displayedWeek;
+  final int currentWeek;
+
   final VoidCallback onTap;
   final VoidCallback onLongPress;
 
@@ -755,6 +767,8 @@ class _CourseCell extends StatelessWidget {
     required this.inactiveCourses,
     required this.otherWeekCourses,
     required this.isSelected,
+    required this.displayedWeek,
+    required this.currentWeek,
     required this.onTap,
     required this.onLongPress,
   });
@@ -766,32 +780,29 @@ class _CourseCell extends StatelessWidget {
     return null;
   }
 
+  /// The course shown with the "in class right now" pulse, or null.
+  ///
+  /// Two conditions, and both come from data the grid already prepared:
+  ///   - only [activeCourses] is considered, i.e. courses that genuinely run in
+  ///     the displayed week (so single/double-week courses are handled here),
+  ///   - [Course.shouldPulseInGrid] additionally requires the displayed week to
+  ///     BE the current week and the clock to be inside the session. That week
+  ///     check is what stops the effect surviving a tap on the header arrows.
+  ///
+  /// The effect belongs to at most one course per cell: a cell can hold a course
+  /// group, and only the first currently-running one may pulse.
+  Course? get _ongoingCourse {
+    if (activeCourses.isEmpty) return null;
+    final c = activeCourses.first;
+    return c.shouldPulseInGrid(
+            displayedWeek: displayedWeek, currentWeek: currentWeek, now: DateTime.now())
+        ? c
+        : null;
+  }
+
   bool get _isActive => activeCourses.isNotEmpty;
   int get _total =>
       activeCourses.length + inactiveCourses.length + otherWeekCourses.length;
-
-  bool get _isOngoing {
-    final c = _primary;
-    if (c == null) return false;
-    final now = DateTime.now();
-    final dow = now.weekday % 7;
-    final hour = now.hour;
-    final minute = now.minute;
-    final currentMin = hour * 60 + minute;
-
-    const slotTimes = {
-      1: {'start': 8 * 60, 'end': 9 * 60 + 40},
-      3: {'start': 10 * 60 + 10, 'end': 11 * 60 + 50},
-      5: {'start': 14 * 60, 'end': 15 * 60 + 40},
-      7: {'start': 16 * 60 + 10, 'end': 17 * 60 + 50},
-      9: {'start': 19 * 60 + 30, 'end': 21 * 60 + 10},
-    };
-
-    if (c.dayOfWeek != dow) return false;
-    final slot = slotTimes[c.startPeriod];
-    if (slot == null) return false;
-    return currentMin >= slot['start']! && currentMin < slot['end']!;
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -811,7 +822,7 @@ class _CourseCell extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       onLongPress: onLongPress,
-      child: _isOngoing && !isSelected
+      child: _ongoingCourse != null && !isSelected
           ? _PulsingCell(
               child: buildCellContent(c), color: c.color, borderWidth: bw)
           : Container(
