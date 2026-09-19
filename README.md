@@ -127,13 +127,18 @@ flutter build apk --release --split-per-abi
 
 生成的 APK 在 `build/app/outputs/apk/release/` 下，文件名已带应用名和版本号：
 
-- `qianzhike-v2.0.0-arm64-v8a.apk`（多数手机）
-- `qianzhike-v2.0.0-armeabi-v7a.apk`（老旧 32 位设备）
-- `qianzhike-v2.0.0-x86_64.apk`（模拟器）
+- `qianzhike-v2.0.1-arm64-v8a.apk`（多数手机）
+- `qianzhike-v2.0.1-armeabi-v7a.apk`（老旧 32 位设备）
+- `qianzhike-v2.0.1-x86_64.apk`（模拟器）
 
-一般安装 `qianzhike-v2.0.0-arm64-v8a.apk`。
+一般安装 `qianzhike-v2.0.1-arm64-v8a.apk`。
 
 > 注：`build/app/outputs/flutter-apk/` 是 Flutter 工具的内部拷贝目录，仍叫 `app-*.apk`；带名字的正式产物在 `apk/release/`。
+
+> ⚠️ **发布前须知**：当前 `android/app/build.gradle.kts` 的 release 构建仍使用 **debug 签名密钥**
+> （`signingConfig = signingConfigs.getByName("debug")`），`applicationId` 也仍是模板默认的
+> `com.example.course_schedule_app`。自用安装没问题；**若要上架应用商店或长期分发，必须先配置正式签名
+> 并修改 applicationId** —— 否则更换签名后已安装用户无法覆盖升级。
 
 ## 运行环境
 
