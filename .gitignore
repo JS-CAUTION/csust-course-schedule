@@ -55,3 +55,6 @@ app.*.map.json
 # Reasonix local metadata (desktop topics, MCP permissions)
 .reasonix/
 reasonix.toml
+
+# Local AI collaboration rules (machine-local, not shared)
+AGENTS.md
