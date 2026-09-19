@@ -59,8 +59,9 @@ class MainActivity : FlutterActivity() {
                     if (durationText.isEmpty()) body else "$body · $durationText"
 
                 val notification = NotificationCompat.Builder(this, channelId)
-                    .setSmallIcon(R.mipmap.ic_launcher)
-
+                    // small icon 必须是纯白剪影：系统只取 alpha 通道整体着色，
+                    // 用彩色 launcher 位图会在部分 ROM 上显示成白色方块。
+                    .setSmallIcon(R.drawable.ic_stat_course)
                     .setLargeIcon(largeIcon)
                     .setContentTitle(title)
                     .setContentText(contentText)

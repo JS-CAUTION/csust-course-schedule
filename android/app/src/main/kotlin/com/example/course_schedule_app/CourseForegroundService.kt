@@ -57,7 +57,8 @@ class CourseForegroundService : Service() {
 
         val bmp = BitmapFactory.decodeResource(resources, R.mipmap.ic_launcher)
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setSmallIcon(R.mipmap.ic_launcher)
+            // small icon 必须是纯白剪影，不能用彩色 launcher 位图。
+            .setSmallIcon(R.drawable.ic_stat_course)
             .setLargeIcon(bmp)
             .setContentTitle(appLabel)
             .setContentText("流转")

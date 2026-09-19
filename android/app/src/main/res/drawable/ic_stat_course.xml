@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  状态栏通知图标（闹钟）。
+  Android 5.0+ 会把 small icon 当遮罩渲染：只取 alpha 通道并整体着色，
+  所以这里必须使用单色纯白剪影，不能用彩色 launcher 位图
+  （否则在部分 ROM 上会显示成白色方块）。
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+
+    <!-- 表盘外圈 -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M12,4 a8,8 0 1,0 0,16 a8,8 0 1,0 0,-16 Z M12,6 a6,6 0 1,1 0,12 a6,6 0 1,1 0,-12 Z" />
+
+    <!-- 指针 -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M11.25,7.5 h1.5 v5.1 h-1.5 Z" />
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M12,11.25 h3.5 v1.5 h-3.5 Z" />
+
+    <!-- 左铃铛 -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M4.6,3.0 L2.2,6.4 L1.0,5.6 L3.4,2.2 Z" />
+
+    <!-- 右铃铛（左铃铛关于 x=12 的镜像） -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M19.4,3.0 L21.8,6.4 L23.0,5.6 L20.6,2.2 Z" />
+</vector>
