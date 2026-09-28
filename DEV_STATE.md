@@ -1,6 +1,6 @@
 # Course Schedule App — Development State
 
-**当前版本**: v2.0.1+26（见文末发布记录）
+**当前版本**: v2.0.2+27（见文末发布记录）
 
 ## Current Status
 - **Core UI**: Fully implemented (Home, Schedule, Edit Course, Import, Settings, Custom)
@@ -9,8 +9,8 @@
 - **File parsing**: CSV parser works with LibreOffice/Excel converted files
 - **Custom background**: Presets with circle editor (drag-to-position, color picker) and image backgrounds (viewport-style editor)
 - **Background auto-load**: DiffuseBackground self-loads on first render (no manual trigger needed)
-- **Notifications**: Timer polling every 30s + Foreground Service anchor (replaced periodicallyShow/AlarmManager); packed collision-free notification IDs; reminder and in-class banner share one notification slot
-- **Test suite**: 77 tests green (`flutter test`), covering CSV/GBK import, edu extractor, credentials, notification ID layout & slot sharing, schedule pulse gating, time slots
+- **Notifications**: single always-on Foreground Service status notification (native ID 9000) showing next class (time + location) / in-class / remaining-count / end-of-day text; Dart computes the whole string, native only renders it. Polling every 30s, pushed only when the text changes (~10×/day). Reminder and in-class banner retired, along with packed notification IDs and the slot-sharing invariant
+- **Test suite**: 85 tests green (`flutter test`), covering CSV/GBK import, edu extractor, credentials, foreground status text (week gate, session boundaries, fallbacks) and push de-duplication, schedule pulse gating, time slots
 
 ## Done
 - ✅ Home screen: today's courses, week number display, greeting
@@ -63,15 +63,92 @@
 
 ## Known Issues / Next Candidates
 
+- ⬜ 常驻通知的后台更新**尚未真机验证**：文案刷新依赖 Dart isolate 存活，
+  而前台服务只保证进程不被杀，不保证 FlutterActivity/engine 不被回收；
+  最坏情况是文案冻结在最后一次计算结果（不会变错，只会变旧）。
+  已把刷新点放在 `_checkSchedule` 早退之前，但**进程被回收这一路径没有运行时证据**。
+- ⬜ 常驻通知不设 `setVisibility`，锁屏可能不显示内容（有意取舍）。
+  若希望锁屏可见下节课，加一行 `setVisibility(VISIBILITY_PUBLIC)` 即可。
+- ⬜ 折叠态/锁屏下的文案截断表现未实测，且**无法用代码完全控制**；
+  现有文案已把课程名放在前段以降低截断损失。
 - ⬜ `database_service.dart` 的 `Course.fromMap` 无 try/catch，`course.dart` 里 `map['id'] as String`
   遇脏数据会抛异常并冒泡到 `loadCourses()` → 课程列表整体为空、首页空白，且每次启动复现。建议逐条容错跳过。
-- ⬜ `NotificationService` 类注释描述的「课程结束发 dismiss 通知」三态设计实际未实现
-  （走的是 `cancelNotification`），注释与实现已脱节，需对齐。
-- ⬜ 通知投递依赖国产 ROM 省电策略：代码已做定时器对齐 :00/:30 + 前台服务锚定，
+- ⬜ 通知更新依赖国产 ROM 省电策略：代码已做定时器对齐 :00/:30 + 前台服务锚定，
   但真实准点率受系统管控影响，见 README 保活设置。
 - ⬜ 节假日识别（未实现，已讨论）：`lunar` 包（纯 Dart、无原生依赖、含法定节假日与调休数据、2026 年数据已收录）
   是较优数据源；「读手机日历」方案因 `CalendarProvider` 不含中国法定节假日、依赖 ROM/用户订阅、
   且依赖字符串匹配容易被用户自建日程误判，未采用。降级原则：数据缺失时**按上课处理**（漏提醒的代价远大于多提醒）。
+
+## v2.0.2 — 常驻通知改为课程状态显示，退役课前提醒与「提醒提前量」设置
+
+一句话：常驻通知不再写「流转」，改为显示下节课与今日剩余节数。
+
+### 1. 常驻通知承载课程状态（`foreground_status.dart` / `CourseForegroundService.kt`）
+
+- ✅ **文案全部在 Dart 侧算好**再整串交给原生：`buildForegroundStatus()` 纯函数、可注入时间。
+  原生保持"哑"的，只 `setContentText`，不在 Kotlin 里重实现课程逻辑或中文时间格式。
+- ✅ **五种状态**：课间 `下节课 10:10 高等数学 · 综合楼A301 · 今日还剩 3 节`／课前窗口
+  `高等数学 10:10 上课 · 综合楼A301 · 今日还剩 3 节`／课中 `正在上 高等数学 · 今日还剩 2 节`／
+  `今日课程已结束( ノ^ω^)ノ゚`／`今日无课• ᴗ •̥`；学期未设置或课程表为空时回退 `流转`。
+- ✅ **剩余节数含正在上的那节**（还没上完），所以课中从 3 变 2 发生在该节**结束**时刻。
+- ✅ 地点为空时整段省略；课中态不重复地点与时间（课前已给过）。
+- ✅ **课前窗口文案结构明显不同**（课程名前置 + 「上课」），不是只改几个字 ——
+  提醒退役后它是课前唯一会变的可见物。
+- ✅ 新增 `PendingIntent`：点通知打开 app（此前点击无反应）。
+
+### 2. 退役「正在上课」横幅与课前提醒
+
+- ✅ **课程提醒通知与上课横幅全部删除**。常驻通知已承载同样的信息，两者重复。
+- ✅ 随之删除：位编码通知 ID（`_packId` / `_kindReminder` / `_kindOngoing` / `_kindDismiss`）、
+  「提醒与正在上课共用同一槽位」的不变量、`NativeAlarmService` 与 `alarm` 通道、
+  `flutter_local_notifications` 依赖（连带 `pubspec.lock` 少 7 个包）。
+- ✅ `ic_stat_course` 纯白剪影小图标保留，常驻通知继续使用。
+- 有意的取舍：**常驻通知不设 `setVisibility`**（保持默认，锁屏不显示内容）；
+  不改振动、不改提示音 —— 全程无声无振动、不可划掉。
+
+### 3. 刷新时机（`notification_service.dart`）
+
+- ✅ 复用已有的 30 秒轮询（对齐 :00/:30），文案边界过后最多 30 秒更新。
+- ✅ **仅在文案变化时下发**（字符串相等即跳过）→ 一天约 10 次原生调用，
+  既避免反复触碰通知栏，也远离同一通知 ID 的更新频率限制。
+- ✅ **刷新调用点移到早退分支之前**：原 `if (_firstDay == null || _courses.isEmpty) return;`
+  会让课程表为空的用户通知永远冻结在旧文案上。
+
+### 4. 退役「提醒提前量」设置
+
+- ✅ 该设置**名存实亡**：它原本用来决定课前提醒通知何时发出，而那个通知已经退役；
+  剩下的唯一作用是选课前文案何时切换措辞，不值得留一个旋钮。
+- ✅ 课前窗口改为常量 `kPreClassWindow = Duration(minutes: 15)`（沿用原默认值），
+  课前文案行为完全不变。
+- ✅ 删除：设置页整行 + 选择弹窗、`StorageService.getAdvanceMinutes` /
+  `setAdvanceMinutes`、`NotificationService._advanceMinutes` 及
+  `buildForegroundStatus` 的 `advanceMinutes` 参数。
+- ⚠️ 已存在的 `notification_advance_minutes` 键**留在 SharedPreferences 里不再读取**
+  （无代码再写该键，清理它会白白增加启动开销），无副作用。
+
+### 5. 补回通知权限申请（回归修复）
+
+- 🔴 **本次改造过程中自己引入的回归**：`flutter_local_notifications` 的
+  `requestNotificationsPermission()` 是 app 唯一的通知权限申请入口，退役提醒时把插件
+  一起删掉，导致 **Android 13+ 上首次安装可能完全不显示常驻通知**。
+  单测与编译都覆盖不到运行时权限，所以此前"验证通过"的判断是错的。
+- ✅ 修复：`MainActivity.onCreate()` 里原生申请 `POST_NOTIFICATIONS`（API ≥ 33），
+  已授权则完全静默。放在 Activity 而非 Service：Activity 此时已 resume，系统才会真正弹窗。
+- 教训：**删依赖时要核查它顺带承担的职责**，而不是只看它显式导出的 API。
+
+### 验证
+
+- ✅ `flutter test` 全量 **85/85 通过**（新增 30 个：状态文案 25 + 下发去重 5）
+- ✅ `flutter analyze` **164 项**，低于改动前基线 166（净减 2：删掉
+  选择弹窗里一处 `unnecessary_brace_in_string_interps` + 一处 unused import），
+  **无新增，0 error**；剩余 11 条 warning 全在未改动的 `csv_parser` / `diffuse_background`
+- ✅ `flutter build apk --release --split-per-abi` 通过，产出 `qianzhike-v2.0.2-*.apk` 三个
+- ✅ 全仓 `flutter_local_notifications` / `NativeAlarmService` / `_packId` /
+  `advanceMinutes` 零残留（仅注释里提到"已退役"）
+- ⚠️ **真机未验证**（待用户实测，按优先级）：
+  1. 通知栏是否出现常驻通知（验证权限弹窗生效）
+  2. 后台更新是否跟随时间变化
+  3. 锁屏与折叠态截断效果
 
 ## v2.0.1 — 通知链路与课程表特效修复
 
@@ -163,9 +240,9 @@ lib/
 │   ├── database_service.dart          # SharedPreferences storage + CSV parse entry + GBK fallback
 │   ├── csv_parser.dart                # CSV parser (8-col grid, multi-course cell splitting, header-adaptive columns)
 │   ├── preset_storage_service.dart    # Independent preset storage
-│   ├── notification_service.dart      # Notification polling (Timer every 30s, Foreground Service)
-│   ├── native_alarm_service.dart      # MethodChannel bridge (fireImmediate, cancelNotification)
-│   ├── foreground_service_manager.dart # Android Foreground Service start/stop
+│   ├── foreground_status.dart         # 常驻通知文案纯函数（周次闸门唯一入口 + 五种状态）
+│   ├── notification_service.dart      # 30s 轮询 → 算文案 → 仅变化时推送前台服务
+│   ├── foreground_service_manager.dart # Android Foreground Service start/stop/updateStatus
 │   ├── edu_extractor.dart             # 教务在线导入: injection JS + Dart parser (kbtable DOM)
 │   ├── edu_login_scripts.dart         # 登录页检测/自动填充/输入捕获 JS
 │   └── credential_storage_service.dart # 教务账密 Keystore 加密存储
@@ -197,5 +274,5 @@ lib/
 - Image params: scale=image width/frame width, offset=fraction of frame
 - Week navigation: PageView (1-20), initial page = current week from semester first day
 - Background auto-init: DiffuseBackground.load() on first build
-- Notifications: Timer polling every 30s + Foreground Service anchor (no AlarmManager)
-- Android native: MainActivity (3 MethodChannels), CourseForegroundService (specialUse)
+- Notifications: single Foreground Service status notification (ID 9000), text computed in Dart, pushed only on change
+- Android native: MainActivity (2 MethodChannels: launch/service), CourseForegroundService (specialUse)

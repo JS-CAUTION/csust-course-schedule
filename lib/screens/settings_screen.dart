@@ -6,7 +6,6 @@ import '../theme/app_spacing.dart';
 import '../providers/course_provider.dart';
 import '../providers/semester_provider.dart';
 import '../services/database_service.dart';
-import '../services/notification_service.dart';
 import '../widgets/diffuse_background.dart';
 import '../widgets/semester_day_picker.dart';
 import '../widgets/settings_row.dart';
@@ -19,19 +18,6 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  int _advanceMinutes = 15;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadAdvanceMinutes();
-  }
-
-  Future<void> _loadAdvanceMinutes() async {
-    final m = await StorageService.getAdvanceMinutes();
-    if (mounted) setState(() => _advanceMinutes = m);
-  }
-
   @override
   Widget build(BuildContext context) {
     final semesterProvider = context.watch<SemesterProvider>();
@@ -121,20 +107,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             showDivider: false,
                             onTap: () =>
                                 Navigator.pushNamed(context, '/custom'),
-                          ),
-                        ],
-                      ),
-
-                      const SizedBox(height: AppSpacing.base),
-
-                      SettingsCard(
-                        children: [
-                          SettingsRow(
-                            label: '提醒提前量',
-                            value: '$_advanceMinutes分钟',
-                            showChevron: true,
-                            showDivider: false,
-                            onTap: () => _pickAdvanceMinutes(context),
                           ),
                         ],
                       ),
@@ -336,36 +308,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
         );
       }
     }
-  }
-
-  void _pickAdvanceMinutes(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (ctx) => SimpleDialog(
-        title: const Text('提醒提前量'),
-        children: [5, 10, 15, 20, 30].map((m) {
-          return SimpleDialogOption(
-            onPressed: () async {
-              Navigator.pop(ctx);
-              await StorageService.setAdvanceMinutes(m);
-              if (mounted) setState(() => _advanceMinutes = m);
-              // Refresh the polling timer with new advanceMinutes value
-              final courses = context.read<CourseProvider>().courses;
-              if (courses.isNotEmpty) await NotificationService.scheduleAll(courses);
-            },
-            child: Row(
-              children: [
-                Text('${m}分钟'),
-                if (m == _advanceMinutes) ...[
-                  const Spacer(),
-                  const Icon(Icons.check, size: 18, color: AppColors.blue),
-                ],
-              ],
-            ),
-          );
-        }).toList(),
-      ),
-    );
   }
 }
 

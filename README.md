@@ -12,20 +12,20 @@
 - 教务在线导入——内置 WebView 登录教务，一键提取课表，免转 CSV
 - 记住教务账号密码——多账号 Keystore 加密存储、手动一键填充（验证码仍需手输）
 - 自定义背景——弥散圆形拖拽调色、图片双指缩放定位
-- 课前提醒通知，基于定时器轮询 + 前台服务保活
+- 常驻通知显示今日课程状态——下节课的时间、地点与今日剩余节数，课中显示正在上哪节
 - 前台服务保活，适配国产手机的省电机制
 
 ## 重要：电源管理与后台保活
 
-千纸课的课前通知依赖定时轮询和前台服务保活。  
-国产手机对后台应用有严格的省电管控，**如果跳过以下设置，上课提醒极有可能延迟或彻底静默**。
+千纸课依赖常驻通知显示今日课程状态，它由定时轮询和前台服务保活共同维持。  
+国产手机对后台应用有严格的省电管控，**如果跳过以下设置，课程状态可能延迟更新甚至停止**。
 
-> 提示：看到「流转」常驻通知时，说明前台服务已成功启动、后台保活正常。
+> 提示：看到「课程服务」常驻通知时，说明前台服务已成功启动、后台保活正常。
 
 #### 所有手机通用
 
 1. 系统「设置」→「应用」→「千纸课」→「电池 / 省电策略」→ **无限制**
-2. 同一页面 →「通知」→ 全部开启（至少保留「课程提醒」和「上课常驻」）
+2. 同一页面 →「通知」→ 全部开启（至少保留「课程服务」）
 
 ## 课表导入
 
@@ -113,7 +113,7 @@
 | 持久化 | SharedPreferences |
 | 在线导入 | WebView (webview_flutter) |
 | 凭证存储 | flutter_secure_storage (Keystore 加密) |
-| 原生通知 | 定时器轮询 + Foreground Service |
+| 原生通知 | 前台服务常驻状态通知（文案由 Dart 计算） |
 | 前台服务 | Android Foreground Service (specialUse) |
 | 字体 | Google Fonts — Inter / Outfit |
 
@@ -127,11 +127,11 @@ flutter build apk --release --split-per-abi
 
 生成的 APK 在 `build/app/outputs/apk/release/` 下，文件名已带应用名和版本号：
 
-- `qianzhike-v2.0.1-arm64-v8a.apk`（多数手机）
-- `qianzhike-v2.0.1-armeabi-v7a.apk`（老旧 32 位设备）
-- `qianzhike-v2.0.1-x86_64.apk`（模拟器）
+- `qianzhike-v2.0.2-arm64-v8a.apk`（多数手机）
+- `qianzhike-v2.0.2-armeabi-v7a.apk`（老旧 32 位设备）
+- `qianzhike-v2.0.2-x86_64.apk`（模拟器）
 
-一般安装 `qianzhike-v2.0.1-arm64-v8a.apk`。
+一般安装 `qianzhike-v2.0.2-arm64-v8a.apk`。
 
 > 注：`build/app/outputs/flutter-apk/` 是 Flutter 工具的内部拷贝目录，仍叫 `app-*.apk`；带名字的正式产物在 `apk/release/`。
 

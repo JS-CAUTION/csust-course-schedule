@@ -104,10 +104,15 @@ class StorageService {
     return DateTime.parse(s);
   }
 
-  static int calculateWeekNumber(DateTime firstDay) {
-    final today = DateTime.now();
+  /// The 1-based week number [now] falls in, relative to the semester's
+  /// [firstDay].
+  ///
+  /// [now] is injectable so time-dependent callers (the notification poll) can
+  /// be regression-tested deterministically; production callers omit it.
+  static int calculateWeekNumber(DateTime firstDay, [DateTime? now]) {
+    now ??= DateTime.now();
     final firstMonday = firstDay.subtract(Duration(days: firstDay.weekday - 1));
-    final todayMonday = today.subtract(Duration(days: today.weekday - 1));
+    final todayMonday = now.subtract(Duration(days: now.weekday - 1));
     return (todayMonday.difference(firstMonday).inDays ~/ 7) + 1;
   }
 
@@ -141,19 +146,5 @@ class StorageService {
 
   static String? parseSemesterInfo(List<int> bytes) {
     return ScheduleCsvParser.extractSemesterInfo(decodeCsvText(bytes));
-  }
-
-  // ── Notification Settings ──
-
-  static const _advanceMinutesKey = 'notification_advance_minutes';
-
-  static Future<int> getAdvanceMinutes() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getInt(_advanceMinutesKey) ?? 15;
-  }
-
-  static Future<void> setAdvanceMinutes(int minutes) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt(_advanceMinutesKey, minutes);
   }
 }
